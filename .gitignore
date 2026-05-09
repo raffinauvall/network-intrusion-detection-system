@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+venv/
+env/
+.env
+
+# Model Files (Too large for standard Git)
+rf_model.pkl
+
+# Backups & Logs
+*.bak
+*.log
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Scapy compiled files
+*.cap
+*.pcap

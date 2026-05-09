@@ -1,0 +1,1 @@
+sudo nmap -sV -p 8000 --script=http-enum localhost
