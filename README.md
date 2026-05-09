@@ -10,6 +10,12 @@ Sistem Deteksi Intrusi Jaringan (NIDS) berbasis Machine Learning yang menggunaka
 - **Detection History**: Menyimpan riwayat 200 deteksi terakhir.
 - **Flow Monitoring**: Endpoint untuk melihat active flows secara real-time.
 
+## 📥 Download Model
+Karena ukuran model (**156MB**) melebihi limit GitHub, silakan unduh file `rf_model.pkl` melalui tautan berikut dan letakkan di root directory project:
+
+> [!IMPORTANT]
+> **[Download rf_model.pkl (Google Drive)](https://drive.google.com/drive/folders/1nAIYNhCGZwIwnHrAoUbhqdOcxIlTUzDp?usp=sharing)**
+
 ## 🛠️ Persyaratan Sistem
 - Python 3.10+
 - Root/Sudo Privileges (untuk sniffing paket data)
