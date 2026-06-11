@@ -1,5 +1,7 @@
 import logging
 import warnings
+import os
+from pathlib import Path
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,7 +15,63 @@ APP_TITLE = "NIDS Simulation API"
 APP_DESCRIPTION = "Network Intrusion Detection System using Random Forest (UNSW-NB15)"
 APP_VERSION = "2.0"
 
-MODEL_PATH = "rf_model.pkl"
-LOOKBACK_WINDOW = 100  # seconds for ct_* features
-STALE_FLOW_TIMEOUT = 30  # seconds
-PREDICTION_INTERVAL = 1  # seconds
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+
+def _get_float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Invalid %s=%r, using default %s", name, raw, default)
+        return default
+
+
+def _get_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s=%r, using default %s", name, raw, default)
+        return default
+
+
+def _get_bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_csv_env(name: str) -> list[str]:
+    raw = os.environ.get(name, "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+MODEL_PATH = os.environ.get("NIDS_MODEL_PATH", str(BASE_DIR / "rf_model.pkl"))
+API_TOKEN = os.environ.get("NIDS_API_TOKEN", "").strip()
+LOOKBACK_WINDOW = _get_int_env("NIDS_LOOKBACK_WINDOW", 100)
+STALE_FLOW_TIMEOUT = _get_int_env("NIDS_STALE_FLOW_TIMEOUT", 30)
+PREDICTION_INTERVAL = _get_float_env("NIDS_PREDICTION_INTERVAL", 1.0)
+MIN_SRC_PACKETS = _get_int_env("NIDS_MIN_SRC_PACKETS", 1)
+MAX_INSPECT_FEATURES = _get_int_env("NIDS_MAX_INSPECT_FEATURES", 250)
+CONFIDENCE_THRESHOLD = _get_float_env("NIDS_CONFIDENCE_THRESHOLD", 0.80)
+REQ_CONFIDENCE_THRESHOLD = _get_float_env("NIDS_REQ_CONFIDENCE_THRESHOLD", CONFIDENCE_THRESHOLD)
+MONITORING_MODE = os.environ.get("NIDS_MONITORING_MODE", "inbound").strip().lower()
+ENABLE_SNIFFER = _get_bool_env("NIDS_ENABLE_SNIFFER", True)
+ENABLE_AUTO_BLOCK = _get_bool_env("NIDS_ENABLE_AUTO_BLOCK", True)
+BLOCK_MODE = os.environ.get("NIDS_BLOCK_MODE", "internal").strip().lower()
+BLOCK_REASON = os.environ.get("NIDS_BLOCK_REASON", "attack_detected").strip() or "attack_detected"
+BLOCKLIST_PATH = Path(os.environ.get("NIDS_BLOCKLIST_PATH", str(BASE_DIR / "blocked_ips.json")))
+
+# Network interface configuration. Set via environment variable for deployment.
+# Examples:
+#   export NIDS_INTERFACES="eth0"
+#   export NIDS_INTERFACES="eth0,ens3"
+#   export NIDS_INTERFACES=""              # auto-detect active interfaces
+TARGET_INTERFACES = _get_csv_env("NIDS_INTERFACES")
+WHITELIST_IPS = set(_get_csv_env("NIDS_WHITELIST_IPS"))

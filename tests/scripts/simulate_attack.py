@@ -3,11 +3,12 @@
 simulate_attack.py - Send various attack simulations to NIDS API.
 Usage: python simulate_attack.py
 """
-import requests
-import json
+import os
 import sys
 
-BASE_URL = "http://127.0.0.1:8000"
+import requests
+
+BASE_URL = os.environ.get("NIDS_API_URL", "http://127.0.0.1:8000")
 
 def send_attack(name, description, features):
     """Send attack simulation and display results."""
@@ -44,7 +45,7 @@ def main():
         r = requests.get(BASE_URL, timeout=3)
         print(f"✅ Connected: {r.json()['message']}")
     except Exception:
-        print("❌ API not running. Start: sudo ./venv/bin/python app.py")
+        print("❌ API not running. Start: sudo ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000")
         sys.exit(1)
 
     # 1. DoS/DDoS
@@ -122,6 +123,9 @@ def main():
         print(f"   Status: {status.get('status', 'N/A')}")
         print(f"   Confidence: {status.get('confidence', 'N/A')}")
         print(f"   Active Flows: {status.get('active_flows', 'N/A')}")
+        sniffer = status.get("sniffer", {})
+        if sniffer:
+            print(f"   Sniffer: {sniffer.get('status', 'N/A')}")
     except Exception as e:
         print(f"   Error: {e}")
 

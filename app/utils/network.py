@@ -1,6 +1,7 @@
 import netifaces
 import statistics
 
+
 def get_service(port: int) -> str:
     port_map = {
         80: "http", 443: "ssl", 53: "dns", 21: "ftp", 20: "ftp-data",
@@ -9,7 +10,8 @@ def get_service(port: int) -> str:
     }
     return port_map.get(port, "-")
 
-def get_active_interfaces():
+
+def get_active_interfaces() -> list[str]:
     """Auto-detect active network interfaces."""
     interfaces = []
     try:
@@ -24,16 +26,36 @@ def get_active_interfaces():
         interfaces = ["lo"]
     return interfaces or ["lo"]
 
-def compute_jitter(packets):
-    """Compute jitter (variance of inter-arrival times)."""
+
+def get_local_ips() -> set[str]:
+    """
+    Return all IPv4 addresses assigned to this machine.
+    Used to identify inbound traffic (dst == local IP = traffic TO this machine).
+    """
+    local_ips = {"127.0.0.1"}
+    try:
+        for iface in netifaces.interfaces():
+            addrs = netifaces.ifaddresses(iface)
+            for addr in addrs.get(netifaces.AF_INET, []):
+                ip = addr.get("addr", "")
+                if ip:
+                    local_ips.add(ip)
+    except Exception:
+        pass
+    return local_ips
+
+
+def compute_jitter(packets) -> float:
+    """Compute jitter (stdev of inter-arrival times in ms)."""
     if len(packets) < 3:
         return 0.0
     intervals = [packets[i][0] - packets[i-1][0] for i in range(1, len(packets))]
     if len(intervals) < 2:
         return 0.0
-    return statistics.stdev(intervals) * 1000  # ms
+    return statistics.stdev(intervals) * 1000
 
-def compute_loss(packets):
+
+def compute_loss(packets) -> int:
     """Estimate packet loss based on TCP retransmissions."""
     if not packets:
         return 0

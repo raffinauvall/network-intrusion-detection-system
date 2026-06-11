@@ -12,9 +12,12 @@ import subprocess
 import requests
 import time
 import sys
-import json
+import os
+import shlex
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("NIDS_API_URL", "http://127.0.0.1:8000")
+TARGET_HOST = os.environ.get("NIDS_TEST_HOST", "127.0.0.1")
+TARGET_PORT = os.environ.get("NIDS_TEST_PORT", "8000")
 RESULTS = []
 
 
@@ -27,7 +30,7 @@ def check_api():
             return True
     except Exception:
         pass
-    print("❌ API is not running. Start it with: sudo ./venv/bin/python app.py")
+    print("❌ API is not running. Start it with: sudo ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000")
     return False
 
 
@@ -79,7 +82,7 @@ def run_nmap_scan(name, command, wait_before=2, wait_after=5):
     print(f"   🚀 Running nmap scan...")
     try:
         result = subprocess.run(
-            command.split(),
+            shlex.split(command),
             capture_output=True,
             text=True,
             timeout=60
@@ -175,70 +178,70 @@ def main():
     # 1. SYN Scan (most common, half-open)
     run_nmap_scan(
         "SYN Scan (Half-Open)",
-        "nmap -sS -p 8000 127.0.0.1",
+        f"nmap -sS -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 2. Service Version Detection
     run_nmap_scan(
         "Service Version Scan",
-        "nmap -sV -p 8000 127.0.0.1",
+        f"nmap -sV -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 3. TCP Connect Scan
     run_nmap_scan(
         "TCP Connect Scan",
-        "nmap -sT -p 8000 127.0.0.1",
+        f"nmap -sT -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 4. Aggressive Scan (OS detection + script + version + traceroute)
     run_nmap_scan(
         "Aggressive Scan (-A)",
-        "nmap -A -p 8000 127.0.0.1",
+        f"nmap -A -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=8
     )
 
     # 5. Xmas Scan (FIN+PSH+URG)
     run_nmap_scan(
         "Xmas Scan",
-        "nmap -sX -p 8000 127.0.0.1",
+        f"nmap -sX -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 6. FIN Scan
     run_nmap_scan(
         "FIN Scan",
-        "nmap -sF -p 8000 127.0.0.1",
+        f"nmap -sF -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 7. NULL Scan
     run_nmap_scan(
         "NULL Scan",
-        "nmap -sN -p 8000 127.0.0.1",
+        f"nmap -sN -p {TARGET_PORT} {TARGET_HOST}",
         wait_after=5
     )
 
     # 8. Multi-port scan (wider reconnaissance)
     run_nmap_scan(
         "Multi-Port Reconnaissance",
-        "nmap -sS -p 1-1024 127.0.0.1",
+        f"nmap -sS -p 1-1024 {TARGET_HOST}",
         wait_after=8
     )
 
     # 9. Fast scan
     run_nmap_scan(
         "Fast Scan (-F)",
-        "nmap -sS -F 127.0.0.1",
+        f"nmap -sS -F {TARGET_HOST}",
         wait_after=5
     )
 
     # 10. Ping + port scan combo
     run_nmap_scan(
         "Ping + Port Scan",
-        "nmap -sS -sV -O -p 22,80,443,8000 127.0.0.1",
+        f"nmap -sS -sV -O -p 22,80,443,{TARGET_PORT} {TARGET_HOST}",
         wait_after=8
     )
 

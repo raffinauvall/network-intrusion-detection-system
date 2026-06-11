@@ -1,20 +1,43 @@
 import time
-from app.state import connection_log
+from app.state import connection_log, connection_log_lock
 from app.utils.network import get_service, compute_jitter, compute_loss
 from app.services.model_service import model_service
+from app.config import LOOKBACK_WINDOW
 
-def count_ct_features(dst_ip, src_ip, service, dport, sport):
+
+def count_ct_features(dst_ip, src_ip, service, dport, sport, flow_sttl, flow_state):
+    """
+    Compute UNSW-NB15 connection tracking features.
+
+    ct_state_ttl: count of connections with the SAME state AND same TTL bucket.
+    Other ct_* features count unique connections to/from src/dst within lookback window.
+    """
     now = time.time()
-    lookback = 100
-    
+
     ct = {
         "ct_dst_ltm": 0, "ct_src_ltm": 0, "ct_dst_src_ltm": 0,
-        "ct_srv_src": 0, "ct_srv_dst": 0, "ct_dst_sport_ltm": 0, "ct_src_dport_ltm": 0
+        "ct_srv_src": 0, "ct_srv_dst": 0, "ct_dst_sport_ltm": 0,
+        "ct_src_dport_ltm": 0, "ct_state_ttl": 0
     }
 
-    for entry in connection_log:
-        if now - entry["time"] > lookback:
+    # TTL buckets: UNSW-NB15 groups TTL by OS type
+    # Linux: 64, Windows: 128, Cisco: 255, Solaris/AIX: 252-254
+    def ttl_bucket(ttl):
+        if ttl <= 64: return 64
+        if ttl <= 128: return 128
+        return 255
+
+    src_ttl_bucket = ttl_bucket(flow_sttl)
+
+    with connection_log_lock:
+        entries = list(connection_log)
+
+    for entry in entries:
+        if now - entry["time"] > LOOKBACK_WINDOW:
             continue
+        # ct_state_ttl: same TTL bucket AND same state
+        if entry.get("ttl_bucket") == src_ttl_bucket and entry.get("state") == flow_state:
+            ct["ct_state_ttl"] += 1
         if entry["dst_ip"] == dst_ip: ct["ct_dst_ltm"] += 1
         if entry["src_ip"] == src_ip: ct["ct_src_ltm"] += 1
         if entry["dst_ip"] == dst_ip and entry["src_ip"] == src_ip: ct["ct_dst_src_ltm"] += 1
@@ -22,34 +45,56 @@ def count_ct_features(dst_ip, src_ip, service, dport, sport):
         if entry["service"] == service and entry["dst_ip"] == dst_ip: ct["ct_srv_dst"] += 1
         if entry["dst_ip"] == dst_ip and entry["sport"] == sport: ct["ct_dst_sport_ltm"] += 1
         if entry["src_ip"] == src_ip and entry["dport"] == dport: ct["ct_src_dport_ltm"] += 1
+
     return ct
 
+
 def build_features_from_flow(flow) -> dict:
+    """Build all 192 UNSW-NB15 features from a single FlowRecord."""
     feat = {f: 0.0 for f in model_service.features}
     spkts = len(flow.src_packets)
     dpkts = len(flow.dst_packets)
-    if spkts == 0: return feat
+
+    if spkts == 0:
+        return feat
 
     dur = max(flow.last_time - flow.start_time, 0.001)
     sbytes = sum(p[1] for p in flow.src_packets)
-    dbytes = sum(p[1] for p in flow.dst_packets)
 
-    feat.update({
-        "dur": dur, "sbytes": sbytes, "spkts": spkts, "smean": sbytes / spkts,
-        "sload": (sbytes * 8) / dur, "sttl": flow.src_ttls[0] if flow.src_ttls else 0,
-        "rate": (spkts + dpkts) / dur, "dbytes": dbytes, "dpkts": dpkts,
-        "dmean": dbytes / dpkts if dpkts > 0 else 0, "dload": (dbytes * 8) / dur if dur > 0 else 0,
-        "dttl": flow.dst_ttls[0] if flow.dst_ttls else 0,
-        "sjit": compute_jitter(flow.src_packets), "djit": compute_jitter(flow.dst_packets),
-        "sloss": compute_loss(flow.src_packets), "dloss": compute_loss(flow.dst_packets)
-    })
+    # --- Source-side metrics ---
+    feat["dur"] = dur
+    feat["sbytes"] = sbytes
+    feat["spkts"] = spkts
+    feat["smean"] = sbytes / spkts
+    feat["sload"] = (sbytes * 8) / dur
+    feat["sttl"] = flow.src_ttls[0] if flow.src_ttls else 0
+    feat["sjit"] = compute_jitter(flow.src_packets)
+    feat["sloss"] = compute_loss(flow.src_packets)
 
     if spkts > 1:
-        feat["sinpkt"] = (sum(flow.src_packets[i][0] - flow.src_packets[i-1][0] for i in range(1, spkts)) / (spkts-1)) * 1000
-    if dpkts > 1:
-        feat["dinpkt"] = (sum(flow.dst_packets[i][0] - flow.dst_packets[i-1][0] for i in range(1, dpkts)) / (dpkts-1)) * 1000
+        intervals = [flow.src_packets[i][0] - flow.src_packets[i-1][0] for i in range(1, spkts)]
+        feat["sinpkt"] = (sum(intervals) / len(intervals)) * 1000
 
-    if flow.proto == 6:  # TCP
+    # --- Destination-side metrics (only if we actually have response packets) ---
+    if dpkts > 0:
+        dbytes = sum(p[1] for p in flow.dst_packets)
+        feat["dbytes"] = dbytes
+        feat["dpkts"] = dpkts
+        feat["dmean"] = dbytes / dpkts
+        feat["dload"] = (dbytes * 8) / dur
+        feat["dttl"] = flow.dst_ttls[0] if flow.dst_ttls else 0
+        feat["djit"] = compute_jitter(flow.dst_packets)
+        feat["dloss"] = compute_loss(flow.dst_packets)
+
+        if dpkts > 1:
+            d_intervals = [flow.dst_packets[i][0] - flow.dst_packets[i-1][0] for i in range(1, dpkts)]
+            feat["dinpkt"] = (sum(d_intervals) / len(d_intervals)) * 1000
+
+    # --- Combined ---
+    feat["rate"] = (spkts + dpkts) / dur
+
+    # --- TCP-specific features (only if TCP) ---
+    if flow.proto == 6:
         if flow.src_tcp_seq: feat["stcpb"] = flow.src_tcp_seq[0]
         if flow.dst_tcp_seq: feat["dtcpb"] = flow.dst_tcp_seq[0]
         if flow.src_tcp_win: feat["swin"] = flow.src_tcp_win[0]
@@ -60,16 +105,27 @@ def build_features_from_flow(flow) -> dict:
         if flow.synack_time and flow.ack_time:
             feat["ackdat"] = flow.ack_time - flow.synack_time
 
-    feat["ct_state_ttl"] = min(len([e for e in connection_log if time.time() - e["time"] < 100]), 255)
+    # --- Connection tracking features (ct_*) ---
+    sttl = feat["sttl"]
+    state = flow.state
     service = get_service(flow.dport)
-    feat.update(count_ct_features(flow.dst_ip, flow.src_ip, service, flow.dport, flow.sport))
-    if flow.src_ip == flow.dst_ip and flow.sport == flow.dport: feat["is_sm_ips_ports"] = 1.0
+    ct = count_ct_features(flow.dst_ip, flow.src_ip, service, flow.dport, flow.sport, sttl, state)
+    feat.update(ct)
 
+    # --- Boolean features ---
+    if flow.src_ip == flow.dst_ip and flow.sport == flow.dport:
+        feat["is_sm_ips_ports"] = 1.0
+
+    # --- Categorical one-hot encoding ---
     proto_name = {6: "tcp", 17: "udp", 1: "icmp"}.get(flow.proto, "unas")
-    if f"proto_{proto_name}" in feat: feat[f"proto_{proto_name}"] = 1.0
-    if f"service_{service}" in feat: feat[f"service_{service}"] = 1.0
-    
+    if f"proto_{proto_name}" in feat:
+        feat[f"proto_{proto_name}"] = 1.0
+
+    if f"service_{service}" in feat:
+        feat[f"service_{service}"] = 1.0
+
     state_key = flow.state if f"state_{flow.state}" in feat else "CON"
-    if f"state_{state_key}" in feat: feat[f"state_{state_key}"] = 1.0
+    if f"state_{state_key}" in feat:
+        feat[f"state_{state_key}"] = 1.0
 
     return feat

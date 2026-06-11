@@ -4,9 +4,9 @@ client.py - Test client for NIDS API endpoints.
 Usage: python client.py
 """
 import requests
-import json
+import os
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("NIDS_API_URL", "http://127.0.0.1:8000")
 
 def test_root():
     print("\n--- Root Endpoint ---")
@@ -25,31 +25,26 @@ def test_status():
     print(f"Prediction: {data.get('prediction', 'N/A')}")
     print(f"Confidence: {data.get('confidence', 'N/A')}")
     print(f"Active Flows: {data.get('active_flows', 'N/A')}")
+    sniffer = data.get("sniffer", {})
+    if sniffer:
+        print(f"Sniffer: {sniffer.get('status', 'N/A')}")
     if data.get("attack_flow"):
         af = data["attack_flow"]
         print(f"Attack Flow: {af['src']}:{af['sport']} -> {af['dst']}:{af['dport']}")
 
 def test_inspect():
     print("\n--- Manual Inspection ---")
-    # Test with normal traffic features
+    # Sparse normal HTTP baseline.
     features = {
-        "dur": 1.5,
+        "dur": 0.5,
         "sbytes": 500,
-        "dbytes": 15000,
-        "rate": 20,
+        "spkts": 5,
+        "rate": 10,
         "sttl": 64,
-        "dttl": 64,
-        "spkts": 10,
-        "dpkts": 15,
-        "sload": 2666,
-        "dload": 80000,
-        "smean": 50,
-        "dmean": 1000,
-        "tcprtt": 0.05,
-        "synack": 0.025,
-        "ackdat": 0.025,
+        "sload": 8000,
+        "smean": 100,
+        "sinpkt": 100,
         "proto_tcp": 1.0,
-        "service_http": 1.0,
         "state_CON": 1.0,
     }
     res = requests.post(f"{BASE_URL}/inspect", json={"features": features})
@@ -105,7 +100,7 @@ if __name__ == "__main__":
         test_flows()
         test_features()
     except requests.ConnectionError:
-        print("❌ Cannot connect to API. Start: sudo ./venv/bin/python app.py")
+        print("❌ Cannot connect to API. Start: sudo ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000")
     except Exception as e:
         print(f"❌ Error: {e}")
 

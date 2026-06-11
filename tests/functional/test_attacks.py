@@ -7,10 +7,12 @@ The model splits sttl at ~45.5 and ct_state_ttl at 0.5/1/2/4.
 
 Usage: python test_attacks.py
 """
-import requests
+import os
 import sys
 
-BASE_URL = "http://127.0.0.1:8000"
+import requests
+
+BASE_URL = os.environ.get("NIDS_API_URL", "http://127.0.0.1:8000")
 
 PROFILES = {
     # ─── ATTACK PATTERNS (calibrated to UNSW-NB15 distributions) ───
@@ -183,7 +185,7 @@ def main():
     try:
         requests.get(BASE_URL, timeout=3)
     except Exception:
-        print("❌ API not running. Start: sudo ./venv/bin/python app.py")
+        print("❌ API not running. Start: sudo ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000")
         sys.exit(1)
     print("✅ API is running.\n")
 
