@@ -1,3 +1,5 @@
+"""Experimental legacy blocking helpers; unused by the supported prediction API."""
+
 import ipaddress
 import json
 import subprocess

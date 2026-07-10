@@ -1,6 +1,5 @@
 import threading
 import time
-import pandas as pd
 from app.state import flow_table, flow_lock, detection_history, latest_prediction
 from app.core.features import build_features_from_flow
 from app.services.model_service import model_service
@@ -8,12 +7,14 @@ from app.services.blocker import block_ip
 from app.utils.network import get_local_ips
 from app.config import (
     CONFIDENCE_THRESHOLD,
+    LIVE_FLOW_ALERT_THRESHOLD,
     MIN_SRC_PACKETS,
     MONITORING_MODE,
     PREDICTION_INTERVAL,
     REQ_CONFIDENCE_THRESHOLD,
     STALE_FLOW_TIMEOUT,
     WHITELIST_IPS,
+    MONITOR_LOOPBACK,
     logger,
 )
 
@@ -22,7 +23,7 @@ LOCAL_IPS: set[str] = get_local_ips()
 
 
 def _is_safe_flow(flow) -> bool:
-    if flow.src_ip == "127.0.0.1" and flow.dst_ip == "127.0.0.1":
+    if not MONITOR_LOOPBACK and flow.src_ip == "127.0.0.1" and flow.dst_ip == "127.0.0.1":
         return True
     if flow.src_ip in WHITELIST_IPS:
         return True
@@ -57,10 +58,23 @@ def _history_event(flow, confidence: float) -> dict:
     }
 
 
+def _flow_info(flow, confidence: float, detector: str) -> dict:
+    return {
+        "src": flow.src_ip,
+        "dst": flow.dst_ip,
+        "sport": flow.sport,
+        "dport": flow.dport,
+        "proto": flow.proto,
+        "state": flow.state,
+        "confidence": round(confidence, 4),
+        "detector": detector,
+    }
+
+
 def monitor_loop(stop_event: threading.Event | None = None):
     stop_event = stop_event or threading.Event()
     logger.info(
-        "Monitoring %s traffic to local IPs: %s",
+        "Prototype live feature extractor monitoring %s traffic to local IPs: %s",
         MONITORING_MODE.upper(),
         sorted(LOCAL_IPS),
     )
@@ -117,17 +131,19 @@ def monitor_loop(stop_event: threading.Event | None = None):
             continue
 
         try:
-            X = pd.DataFrame(feature_list, columns=model_service.features)
-            probas = model_service.model.predict_proba(X)
-            preds = model_service.model.predict(X)
-
             attack_detected = False
             max_conf = 0.0
             attack_info = None
+            if LIVE_FLOW_ALERT_THRESHOLD and len(active_flows) >= LIVE_FLOW_ALERT_THRESHOLD:
+                attack_detected = True
+                max_conf = 1.0
+                attack_info = _flow_info(active_flows[0][1], max_conf, "flow_count")
+                detection_history.append(_history_event(active_flows[0][1], max_conf))
 
-            for i, flow in enumerate(valid_flows):
-                pred = preds[i]
-                conf = probas[i][1] if len(probas[i]) > 1 else 0.0
+            results = model_service.predict_many(feature_list)
+            for flow, result in zip(valid_flows, results):
+                pred = result["prediction_label"]
+                conf = result["confidence"] or 0.0
                 thresh = (
                     REQ_CONFIDENCE_THRESHOLD
                     if flow.state in INCOMPLETE_STATES
@@ -138,11 +154,7 @@ def monitor_loop(stop_event: threading.Event | None = None):
                     attack_detected = True
                     if conf > max_conf:
                         max_conf = conf
-                        attack_info = {
-                            "src": flow.src_ip, "dst": flow.dst_ip, "sport": flow.sport,
-                            "dport": flow.dport, "proto": flow.proto, "state": flow.state,
-                            "confidence": round(conf, 4)
-                        }
+                        attack_info = _flow_info(flow, conf, "model")
 
                     detection_history.append(_history_event(flow, conf))
                     block_ip(flow.src_ip, confidence=conf)

@@ -1,7 +1,7 @@
 import time
 from app.state import connection_log, connection_log_lock
 from app.utils.network import get_service, compute_jitter, compute_loss
-from app.services.model_service import model_service
+from app.schemas.traffic import FEATURE_COLUMNS
 from app.config import LOOKBACK_WINDOW
 
 
@@ -50,10 +50,16 @@ def count_ct_features(dst_ip, src_ip, service, dport, sport, flow_sttl, flow_sta
 
 
 def build_features_from_flow(flow) -> dict:
-    """Build all 192 UNSW-NB15 features from a single FlowRecord."""
-    feat = {f: 0.0 for f in model_service.features}
+    """Build the 42 raw model-input fields from a live FlowRecord prototype."""
+    feat = {f: 0.0 for f in FEATURE_COLUMNS}
     spkts = len(flow.src_packets)
     dpkts = len(flow.dst_packets)
+    service = get_service(flow.dport)
+    feat.update({
+        "proto": {6: "tcp", 17: "udp", 1: "icmp"}.get(flow.proto, str(flow.proto)),
+        "service": service,
+        "state": flow.state,
+    })
 
     if spkts == 0:
         return feat
@@ -108,24 +114,11 @@ def build_features_from_flow(flow) -> dict:
     # --- Connection tracking features (ct_*) ---
     sttl = feat["sttl"]
     state = flow.state
-    service = get_service(flow.dport)
     ct = count_ct_features(flow.dst_ip, flow.src_ip, service, flow.dport, flow.sport, sttl, state)
     feat.update(ct)
 
     # --- Boolean features ---
     if flow.src_ip == flow.dst_ip and flow.sport == flow.dport:
         feat["is_sm_ips_ports"] = 1.0
-
-    # --- Categorical one-hot encoding ---
-    proto_name = {6: "tcp", 17: "udp", 1: "icmp"}.get(flow.proto, "unas")
-    if f"proto_{proto_name}" in feat:
-        feat[f"proto_{proto_name}"] = 1.0
-
-    if f"service_{service}" in feat:
-        feat[f"service_{service}"] = 1.0
-
-    state_key = flow.state if f"state_{flow.state}" in feat else "CON"
-    if f"state_{state_key}" in feat:
-        feat[f"state_{state_key}"] = 1.0
 
     return feat

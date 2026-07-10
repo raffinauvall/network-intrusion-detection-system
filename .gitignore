@@ -1,15 +1,21 @@
 # Python cache
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # Environment
+.venv/
 venv/
 env/
 .env
 
 # Model Files (Too large for standard Git)
 rf_model.pkl
+random_forest_ids_pipeline.pkl
+models/*.pkl
+.git/
 
 # Backups & Logs
 *.bak

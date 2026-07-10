@@ -1,193 +1,100 @@
-from fastapi import APIRouter, HTTPException
-from app.api.schemas import InspectRequest
-from app.state import (
-    latest_prediction,
-    detection_history,
-    flow_table,
-    flow_lock,
-    sniffer_status,
-)
-from app.services.model_service import model_service
-from app.services.blocker import list_blocks
+from fastapi import APIRouter, HTTPException, Query
+
 from app.core.features import build_features_from_flow
-from app.config import (
-    BLOCK_MODE,
-    ENABLE_AUTO_BLOCK,
-    CONFIDENCE_THRESHOLD,
-    MIN_SRC_PACKETS,
-    MONITORING_MODE,
-    PREDICTION_INTERVAL,
-    REQ_CONFIDENCE_THRESHOLD,
-    STALE_FLOW_TIMEOUT,
-    TARGET_INTERFACES,
-    WHITELIST_IPS,
-)
-import time
+from app.config import LIVE_FLOW_ALERT_THRESHOLD, logger
+from app.schemas.response import HealthResponse, ModelInfoResponse, PredictionResponse
+from app.schemas.traffic import TrafficRecord
+from app.services.model_service import model_service
+from app.state import detection_history, flow_lock, flow_table, latest_prediction, sniffer_status
 
 router = APIRouter()
-
-API_ENDPOINTS = [
-    "/status",
-    "/healthz",
-    "/inspect",
-    "/history",
-    "/flows",
-    "/features",
-    "/config",
-    "/blocks",
-    "/debug",
-]
-
-
-def _manual_attack_event(confidence: float) -> dict:
-    return {
-        "timestamp": time.time(),
-        "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "status": "ATTACK",
-        "confidence": round(confidence, 4),
-        "flow": "manual_inspect",
-        "proto": "manual",
-        "spkts": 0,
-        "dpkts": 0,
-    }
-
-
-def _format_prediction_result(pred: int, confidence: float, proba, used_features: int) -> dict:
-    return {
-        "prediction": pred,
-        "status": "ATTACK" if pred == 1 else "OK",
-        "confidence": round(confidence, 4),
-        "probabilities": {
-            "normal": round(float(proba[0]), 4),
-            "attack": round(float(proba[1]), 4),
-        },
-        "used_features": used_features,
-        "defaulted_features": len(model_service.features) - used_features,
-    }
 
 
 @router.get("/")
 async def root():
     return {
-        "message": "NIDS Simulation API is running",
-        "version": "2.0",
-        "endpoints": API_ENDPOINTS,
-        "model": "Random Forest (UNSW-NB15)",
-        "total_features": len(model_service.features)
+        "message": "UNSW-NB15 IDS model-serving API",
+        "endpoints": ["/health", "/model-info", "/predict", "/status", "/flows", "/history", "/debug-live"],
     }
 
-@router.get("/status")
-async def get_status():
-    return {**latest_prediction, "sniffer": dict(sniffer_status)}
 
-
-@router.get("/healthz")
-async def healthz():
+@router.get("/health", response_model=HealthResponse)
+async def health():
     return {
         "status": "ok",
         "model_loaded": model_service.model is not None,
-        "feature_count": len(model_service.features),
-        "sniffer": dict(sniffer_status),
+        "model_name": "Random Forest IDS Pipeline",
     }
 
 
-@router.post("/inspect")
-async def inspect(request: InspectRequest):
-    used_features = len(request.features)
-    model_features = set(model_service.features)
-    unknown_features = sorted(set(request.features) - model_features)
-    if unknown_features:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "Unknown feature names.",
-                "unknown_features": unknown_features,
-            },
-        )
+@router.get("/status")
+async def status():
+    return {**latest_prediction, "sniffer": dict(sniffer_status)}
 
-    pred, confidence, proba = model_service.predict(request.features)
-    result = _format_prediction_result(pred, confidence, proba, used_features)
-    if pred == 1:
-        detection_history.append(_manual_attack_event(confidence))
-    return result
-
-@router.get("/history")
-async def get_history():
-    return {"total": len(detection_history), "events": list(detection_history)[-50:]}
 
 @router.get("/flows")
-async def get_flows():
+async def flows():
     with flow_lock:
-        flows = [{
-            "src": f.src_ip, "dst": f.dst_ip, "sport": f.sport, "dport": f.dport,
-            "proto": {6: "TCP", 17: "UDP", 1: "ICMP"}.get(f.proto, str(f.proto)),
-            "state": f.state, "src_packets": len(f.src_packets), "dst_packets": len(f.dst_packets),
-            "duration": round(f.last_time - f.start_time, 3), "age": round(time.time() - f.start_time, 1)
-        } for f in flow_table.values()]
-    return {"active_flows": len(flows), "flows": flows}
+        items = [
+            {
+                "src": flow.src_ip,
+                "dst": flow.dst_ip,
+                "sport": flow.sport,
+                "dport": flow.dport,
+                "proto": {6: "tcp", 17: "udp", 1: "icmp"}.get(flow.proto, str(flow.proto)),
+                "state": flow.state,
+                "spkts": len(flow.src_packets),
+                "dpkts": len(flow.dst_packets),
+            }
+            for flow in flow_table.values()
+        ]
+    return {"active_flows": len(items), "flows": items}
 
-@router.get("/features")
-async def get_features():
+
+@router.get("/history")
+async def history():
+    return {"total": len(detection_history), "events": list(detection_history)[-50:]}
+
+
+@router.get("/debug-live")
+async def debug_live(limit: int = Query(default=20, ge=1, le=100)):
+    rows = []
+    with flow_lock:
+        flows = list(flow_table.values())[:limit]
+
+    for flow in flows:
+        features = build_features_from_flow(flow)
+        result = model_service.predict(features)
+        rows.append({
+            "flow": f"{flow.src_ip}:{flow.sport} -> {flow.dst_ip}:{flow.dport}",
+            "proto": features["proto"],
+            "service": features["service"],
+            "state": features["state"],
+            "spkts": features["spkts"],
+            "dpkts": features["dpkts"],
+            "rate": round(features["rate"], 4),
+            "prediction": result["prediction"],
+            "prediction_label": result["prediction_label"],
+            "confidence": result["confidence"],
+            "probabilities": result["probabilities"],
+        })
+    return {
+        "total": len(rows),
+        "live_flow_alert_threshold": LIVE_FLOW_ALERT_THRESHOLD,
+        "flow_count_alert": LIVE_FLOW_ALERT_THRESHOLD > 0 and len(flow_table) >= LIVE_FLOW_ALERT_THRESHOLD,
+        "flows": rows,
+    }
+
+
+@router.get("/model-info", response_model=ModelInfoResponse)
+async def model_info():
     return model_service.get_metadata()
 
 
-@router.get("/config")
-async def get_config():
-    """Return active detector tuning parameters."""
-    return {
-        "min_src_packets": MIN_SRC_PACKETS,
-        "confidence_threshold": CONFIDENCE_THRESHOLD,
-        "req_confidence_threshold": REQ_CONFIDENCE_THRESHOLD,
-        "prediction_interval": PREDICTION_INTERVAL,
-        "stale_flow_timeout": STALE_FLOW_TIMEOUT,
-        "monitoring_mode": MONITORING_MODE,
-        "target_interfaces": TARGET_INTERFACES or "auto",
-        "whitelist_ips": sorted(WHITELIST_IPS),
-        "auto_block": ENABLE_AUTO_BLOCK,
-        "block_mode": BLOCK_MODE,
-    }
-
-
-@router.get("/blocks")
-async def get_blocks():
-    return {"total": len(list_blocks()), "blocked_ips": list_blocks()}
-
-
-@router.get("/debug")
-async def debug_flows():
-    """
-    Inspect feature values and raw model predictions for every active flow.
-    Useful for diagnosing false positives in real-time traffic.
-    """
-    results = []
-    with flow_lock:
-        flows_snapshot = list(flow_table.items())
-
-    for key, flow in flows_snapshot:
-        spkts = len(flow.src_packets)
-        dpkts = len(flow.dst_packets)
-        if spkts == 0:
-            continue
-
-        features = build_features_from_flow(flow)
-        pred, confidence, proba = model_service.predict(features)
-
-        # Only show non-zero features (keeps output readable)
-        nonzero = {k: round(v, 4) for k, v in features.items() if v != 0.0}
-
-        results.append({
-            "flow":       f"{flow.src_ip}:{flow.sport} -> {flow.dst_ip}:{flow.dport}",
-            "proto":      {6: "TCP", 17: "UDP", 1: "ICMP"}.get(flow.proto, str(flow.proto)),
-            "state":      flow.state,
-            "spkts":      spkts,
-            "dpkts":      dpkts,
-            "age_s":      round(time.time() - flow.start_time, 2),
-            "prediction": "ATTACK" if pred == 1 else "OK",
-            "confidence": round(confidence, 4),
-            "p_normal":   round(float(proba[0]), 4),
-            "p_attack":   round(float(proba[1]), 4),
-            "nonzero_features": nonzero,
-        })
-
-    results.sort(key=lambda x: x["confidence"], reverse=True)
-    return {"total_flows": len(results), "flows": results}
+@router.post("/predict", response_model=PredictionResponse)
+async def predict(record: TrafficRecord):
+    try:
+        return model_service.predict(record.model_dump())
+    except Exception:
+        logger.exception("Model inference failed")
+        raise HTTPException(status_code=500, detail="Model inference failed.")

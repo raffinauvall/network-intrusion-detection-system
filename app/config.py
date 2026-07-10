@@ -1,6 +1,6 @@
+import os
 import logging
 import warnings
-import os
 from pathlib import Path
 
 # Setup Logging
@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-APP_TITLE = "NIDS Simulation API"
-APP_DESCRIPTION = "Network Intrusion Detection System using Random Forest (UNSW-NB15)"
-APP_VERSION = "2.0"
+APP_TITLE = "UNSW-NB15 IDS Model API"
+APP_DESCRIPTION = "FastAPI prototype for serving a Random Forest IDS pipeline."
+APP_VERSION = "3.0"
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -52,18 +52,27 @@ def _get_csv_env(name: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-MODEL_PATH = os.environ.get("NIDS_MODEL_PATH", str(BASE_DIR / "rf_model.pkl"))
+_MODEL_PATH = os.environ.get(
+    "MODEL_PATH",
+    os.environ.get("NIDS_MODEL_PATH", "models/random_forest_ids_pipeline.pkl"),
+)
+MODEL_PATH = Path(_MODEL_PATH).expanduser()
+if not MODEL_PATH.is_absolute():
+    MODEL_PATH = BASE_DIR / MODEL_PATH
+
 API_TOKEN = os.environ.get("NIDS_API_TOKEN", "").strip()
 LOOKBACK_WINDOW = _get_int_env("NIDS_LOOKBACK_WINDOW", 100)
 STALE_FLOW_TIMEOUT = _get_int_env("NIDS_STALE_FLOW_TIMEOUT", 30)
 PREDICTION_INTERVAL = _get_float_env("NIDS_PREDICTION_INTERVAL", 1.0)
 MIN_SRC_PACKETS = _get_int_env("NIDS_MIN_SRC_PACKETS", 1)
+LIVE_FLOW_ALERT_THRESHOLD = _get_int_env("NIDS_LIVE_FLOW_ALERT_THRESHOLD", 100)
 MAX_INSPECT_FEATURES = _get_int_env("NIDS_MAX_INSPECT_FEATURES", 250)
 CONFIDENCE_THRESHOLD = _get_float_env("NIDS_CONFIDENCE_THRESHOLD", 0.80)
 REQ_CONFIDENCE_THRESHOLD = _get_float_env("NIDS_REQ_CONFIDENCE_THRESHOLD", CONFIDENCE_THRESHOLD)
 MONITORING_MODE = os.environ.get("NIDS_MONITORING_MODE", "inbound").strip().lower()
-ENABLE_SNIFFER = _get_bool_env("NIDS_ENABLE_SNIFFER", True)
-ENABLE_AUTO_BLOCK = _get_bool_env("NIDS_ENABLE_AUTO_BLOCK", True)
+ENABLE_SNIFFER = _get_bool_env("NIDS_ENABLE_SNIFFER", False)
+ENABLE_AUTO_BLOCK = _get_bool_env("NIDS_ENABLE_AUTO_BLOCK", False)
+MONITOR_LOOPBACK = _get_bool_env("NIDS_MONITOR_LOOPBACK", False)
 BLOCK_MODE = os.environ.get("NIDS_BLOCK_MODE", "internal").strip().lower()
 BLOCK_REASON = os.environ.get("NIDS_BLOCK_REASON", "attack_detected").strip() or "attack_detected"
 BLOCKLIST_PATH = Path(os.environ.get("NIDS_BLOCKLIST_PATH", str(BASE_DIR / "blocked_ips.json")))
