@@ -23,6 +23,8 @@ app/
     detector.py  # loop deteksi live opsional
 tests/
   scripts/       # script simulasi SYN flood lab
+models/
+  random_forest_ids_pipeline.pkl # model scikit-learn yang sudah dilatih
 ```
 
 Alur utama penelitian: packet ditangkap `sniffer.py`, dibentuk menjadi flow,
