@@ -31,7 +31,7 @@ def start_dos(target_ip, target_port=8000, count=1000):
             break
 
 if __name__ == "__main__":
-    TARGET = "192.168.18.45" 
+    TARGET = "127.0.0.1"
     
     if len(sys.argv) > 1:
         TARGET = sys.argv[1]

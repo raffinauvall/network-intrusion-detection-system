@@ -44,6 +44,8 @@ MODEL_PATH=models/random_forest_ids_pipeline.pkl
 
 ## Run
 
+Run API biasa untuk prediksi dari JSON:
+
 ```bash
 uvicorn app.main:app --reload
 ```
@@ -52,6 +54,12 @@ Swagger UI:
 
 ```text
 http://127.0.0.1:8000/docs
+```
+
+Cek API:
+
+```bash
+curl http://127.0.0.1:8000/health
 ```
 
 ## Struktur Project
@@ -80,10 +88,20 @@ endpoint di `main.py`. Modul `core/` hanya dipakai jika live sniffing diaktifkan
 
 ## Predict
 
+Prediksi payload normal:
+
 ```bash
 curl -X POST "http://127.0.0.1:8000/predict" \
   -H "Content-Type: application/json" \
   -d @tests/fixtures/sample_normal.json
+```
+
+Prediksi payload attack:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d @tests/fixtures/sample_attack.json
 ```
 
 Response shape:
@@ -113,27 +131,60 @@ Response shape:
 
 ## Optional Live Sniffing
 
-Live sniffing is off unless enabled:
+Live sniffing dipakai kalau mau demo traffic lokal ditangkap langsung dari
+interface jaringan. Jalankan dari terminal pertama:
 
 ```bash
-NIDS_ENABLE_SNIFFER=true uvicorn app.main:app --reload
+sudo NIDS_ENABLE_SNIFFER=true \
+  NIDS_MONITOR_LOOPBACK=true \
+  NIDS_LIVE_FLOW_ALERT_THRESHOLD=20 \
+  .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-For local attack simulation against `127.0.0.1`, also allow loopback flows:
+Kenapa pakai `sudo`: Scapy biasanya butuh permission root untuk sniff packet.
+Kenapa `NIDS_MONITOR_LOOPBACK=true`: supaya traffic ke `127.0.0.1` ikut
+diproses saat praktikum lokal.
+
+Pantau status dari terminal kedua:
 
 ```bash
-sudo NIDS_ENABLE_SNIFFER=true NIDS_MONITOR_LOOPBACK=true .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+curl http://127.0.0.1:8000/status
+curl http://127.0.0.1:8000/flows
+curl http://127.0.0.1:8000/history
 ```
 
-Depending on the interface and OS permissions, Scapy may require root:
+## Simulasi Serangan Lokal
+
+Gunakan hanya ke mesin sendiri atau lab yang memang lu punya izin. Contoh di
+bawah diarahkan ke `127.0.0.1`, bukan IP publik.
+
+Pastikan live sniffing sudah hidup seperti bagian sebelumnya. Lalu dari
+terminal kedua jalankan simulasi SYN flood lokal:
 
 ```bash
-sudo NIDS_ENABLE_SNIFFER=true .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+sudo .venv/bin/python tests/scripts/dos_simulation.py 127.0.0.1
 ```
 
-The sniffer tracks flows and emits the same 42 raw fields used by `/predict`.
-It does not manually one-hot encode `proto`, `service`, or `state`; the saved
-sklearn pipeline owns preprocessing.
+Setelah itu cek hasil deteksi:
+
+```bash
+curl http://127.0.0.1:8000/status
+curl http://127.0.0.1:8000/history
+```
+
+Untuk bukti laporan, simpan bagian berikut:
+
+- screenshot terminal API saat muncul status `ATTACK`
+- output `GET /status`
+- output `GET /history`
+- penjelasan bahwa simulasi dilakukan di loopback `127.0.0.1`
+
+Alur demo:
+
+```text
+traffic SYN flood lokal -> sniffer Scapy -> flow_table -> ekstraksi 42 fitur
+-> model Random Forest -> status ATTACK/OK -> endpoint /status dan /history
+```
 
 For lab demos, live monitoring also marks `ATTACK` when active flow count
 reaches `NIDS_LIVE_FLOW_ALERT_THRESHOLD` (default `100`). Set it to `0` to
