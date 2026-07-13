@@ -8,6 +8,32 @@ The primary supported flow is still JSON payload -> model pipeline -> response.
 Optional Scapy live sniffing can build prototype flow features, but it is not
 proof that UNSW-NB15 evaluation results transfer directly to live traffic.
 
+## Struktur Project
+
+Source utama sengaja dibuat pendek supaya mudah dijelaskan di laporan:
+
+```text
+app/
+  main.py        # FastAPI app dan endpoint
+  model.py       # load model dan prediksi
+  schemas.py     # daftar 42 fitur, validasi request, response model
+  config.py      # konfigurasi environment
+  state.py       # state runtime untuk live sniffing
+  network.py     # helper port, interface, jitter, loss
+  core/
+    flow.py      # representasi flow
+    features.py  # ekstraksi 42 fitur dari flow live
+    sniffer.py   # packet capture opsional
+    detector.py  # loop deteksi live opsional
+tests/
+  fixtures/      # sample payload normal dan attack
+  scripts/       # script simulasi traffic lab
+```
+
+Alur utama penelitian: request JSON masuk ke `/predict`, divalidasi oleh
+`schemas.py`, dikirim ke model di `model.py`, lalu hasil dikembalikan oleh
+endpoint di `main.py`. Modul `core/` hanya dipakai jika live sniffing diaktifkan.
+
 ## Setup
 
 ```bash
@@ -60,29 +86,6 @@ Cek API:
 ```bash
 curl http://127.0.0.1:8000/health
 ```
-
-## Struktur Project
-
-Source utama sengaja dibuat pendek supaya mudah dijelaskan di laporan:
-
-```text
-app/
-  main.py        # FastAPI app dan endpoint
-  model.py       # load model dan prediksi
-  schemas.py     # daftar 42 fitur, validasi request, response model
-  config.py      # konfigurasi environment
-  state.py       # state runtime untuk live sniffing
-  network.py     # helper port, interface, jitter, loss
-  core/
-    flow.py      # representasi flow
-    features.py  # ekstraksi 42 fitur dari flow live
-    sniffer.py   # packet capture opsional
-    detector.py  # loop deteksi live opsional
-```
-
-Alur utama penelitian: request JSON masuk ke `/predict`, divalidasi oleh
-`schemas.py`, dikirim ke model di `model.py`, lalu hasil dikembalikan oleh
-endpoint di `main.py`. Modul `core/` hanya dipakai jika live sniffing diaktifkan.
 
 ## Predict
 
