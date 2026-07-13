@@ -1,6 +1,6 @@
 from app.core.features import build_features_from_flow
 from app.core.flow import FlowRecord
-from app.schemas.traffic import FEATURE_COLUMNS
+from app.schemas import FEATURE_COLUMNS
 
 
 def test_live_feature_extractor_emits_42_raw_fields():

@@ -60,7 +60,6 @@ MODEL_PATH = Path(_MODEL_PATH).expanduser()
 if not MODEL_PATH.is_absolute():
     MODEL_PATH = BASE_DIR / MODEL_PATH
 
-API_TOKEN = os.environ.get("NIDS_API_TOKEN", "").strip()
 LOOKBACK_WINDOW = _get_int_env("NIDS_LOOKBACK_WINDOW", 100)
 STALE_FLOW_TIMEOUT = _get_int_env("NIDS_STALE_FLOW_TIMEOUT", 30)
 PREDICTION_INTERVAL = _get_float_env("NIDS_PREDICTION_INTERVAL", 1.0)

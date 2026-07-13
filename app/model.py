@@ -4,7 +4,7 @@ import joblib
 import pandas as pd
 
 from app.config import MODEL_PATH, logger
-from app.schemas.traffic import FEATURE_COLUMNS
+from app.schemas import FEATURE_COLUMNS
 
 
 MODEL_NAME = "Random Forest IDS Pipeline"

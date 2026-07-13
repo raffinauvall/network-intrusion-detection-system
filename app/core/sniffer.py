@@ -9,7 +9,7 @@ from app.state import (
     sniffer_status,
 )
 from app.core.flow import FlowRecord
-from app.utils.network import get_service, get_active_interfaces
+from app.network import get_service, get_active_interfaces
 from app.config import logger, TARGET_INTERFACES
 
 

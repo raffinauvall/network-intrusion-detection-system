@@ -6,8 +6,8 @@ import pytest
 import httpx
 
 from app.main import app
-from app.schemas.traffic import FEATURE_COLUMNS
-from app.services.model_service import model_service
+from app.schemas import FEATURE_COLUMNS
+from app.model import model_service
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -103,4 +103,4 @@ async def test_prediction_api_does_not_import_legacy_packet_tools(client):
     assert response.status_code == 200
     assert "scapy" not in sys.modules
     assert "app.core.sniffer" not in sys.modules
-    assert "app.services.blocker" not in sys.modules
+    assert "app.blocker" not in sys.modules

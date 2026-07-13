@@ -2,9 +2,9 @@ import threading
 import time
 from app.state import flow_table, flow_lock, detection_history, latest_prediction
 from app.core.features import build_features_from_flow
-from app.services.model_service import model_service
-from app.services.blocker import block_ip
-from app.utils.network import get_local_ips
+from app.model import model_service
+from app.blocker import block_ip
+from app.network import get_local_ips
 from app.config import (
     CONFIDENCE_THRESHOLD,
     LIVE_FLOW_ALERT_THRESHOLD,

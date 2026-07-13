@@ -54,6 +54,30 @@ Swagger UI:
 http://127.0.0.1:8000/docs
 ```
 
+## Struktur Project
+
+Source utama sengaja dibuat pendek supaya mudah dijelaskan di laporan:
+
+```text
+app/
+  main.py        # FastAPI app dan endpoint
+  model.py       # load model dan prediksi
+  schemas.py     # daftar 42 fitur, validasi request, response model
+  config.py      # konfigurasi environment
+  state.py       # state runtime untuk live sniffing
+  network.py     # helper port, interface, jitter, loss
+  blocker.py     # blocking opsional, default nonaktif
+  core/
+    flow.py      # representasi flow
+    features.py  # ekstraksi 42 fitur dari flow live
+    sniffer.py   # packet capture opsional
+    detector.py  # loop deteksi live opsional
+```
+
+Alur utama penelitian: request JSON masuk ke `/predict`, divalidasi oleh
+`schemas.py`, dikirim ke model di `model.py`, lalu hasil dikembalikan oleh
+endpoint di `main.py`. Modul `core/` hanya dipakai jika live sniffing diaktifkan.
+
 ## Predict
 
 ```bash

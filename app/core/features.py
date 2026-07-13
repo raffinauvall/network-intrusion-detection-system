@@ -1,7 +1,7 @@
 import time
 from app.state import connection_log, connection_log_lock
-from app.utils.network import get_service, compute_jitter, compute_loss
-from app.schemas.traffic import FEATURE_COLUMNS
+from app.network import get_service, compute_jitter, compute_loss
+from app.schemas import FEATURE_COLUMNS
 from app.config import LOOKBACK_WINDOW
 
 

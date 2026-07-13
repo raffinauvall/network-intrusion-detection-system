@@ -5,34 +5,8 @@ import json
 import subprocess
 import time
 
-from app.config import (
-    BLOCK_MODE,
-    BLOCKLIST_PATH,
-    BLOCK_REASON,
-    ENABLE_AUTO_BLOCK,
-    WHITELIST_IPS,
-    logger,
-)
+from app.config import BLOCK_MODE, BLOCKLIST_PATH, BLOCK_REASON, ENABLE_AUTO_BLOCK, WHITELIST_IPS, logger
 from app.state import blocked_ips, blocked_ips_lock
-
-
-def load_blocklist() -> None:
-    if not BLOCKLIST_PATH.exists():
-        return
-
-    try:
-        data = json.loads(BLOCKLIST_PATH.read_text())
-        records = data.get("blocked_ips", [])
-    except Exception as exc:
-        logger.warning("Failed to load blocklist %s: %s", BLOCKLIST_PATH, exc)
-        return
-
-    with blocked_ips_lock:
-        blocked_ips.clear()
-        for record in records:
-            ip = record.get("ip")
-            if ip and _is_blockable_ip(ip):
-                blocked_ips[ip] = record
 
 
 def save_blocklist() -> None:
@@ -131,13 +105,3 @@ def block_ip(ip: str, reason: str = BLOCK_REASON, confidence: float | None = Non
         logger.warning("Blocked %s via %s mode", ip, BLOCK_MODE)
 
     return {"blocked": True, "mode": BLOCK_MODE, "firewall_applied": record["firewall_applied"]}
-
-
-def is_blocked(ip: str) -> bool:
-    with blocked_ips_lock:
-        return ip in blocked_ips
-
-
-def list_blocks() -> list[dict]:
-    with blocked_ips_lock:
-        return list(blocked_ips.values())
