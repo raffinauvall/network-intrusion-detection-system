@@ -73,8 +73,8 @@ Swagger UI tetap tersedia di `http://127.0.0.1:8000/docs`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | API and model readiness |
-| `GET` | `/status` | Latest live-sniffer detection state |
-| `GET` | `/history` | Recent attack events |
+| `GET` | `/status` | Latest live-sniffer detection state, including `attacker_ip` |
+| `GET` | `/history` | Recent attack events, including `attacker_ip` |
 
 ## Realtime Sniffing
 
@@ -123,8 +123,8 @@ curl http://127.0.0.1:8000/history
 Untuk bukti laporan, simpan bagian berikut:
 
 - screenshot terminal API saat muncul status `ATTACK`
-- output `GET /status`
-- output `GET /history`
+- output `GET /status` yang menampilkan `attacker_ip`
+- output `GET /history` yang menampilkan `attacker_ip`
 - penjelasan bahwa simulasi dilakukan di loopback `127.0.0.1`
 
 Alur demo:

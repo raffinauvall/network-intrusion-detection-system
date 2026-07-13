@@ -49,6 +49,9 @@ def _history_event(flow, confidence: float) -> dict:
         "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
         "status": "ATTACK",
         "confidence": round(confidence, 4),
+        "attacker_ip": flow.src_ip,
+        "target_ip": flow.dst_ip,
+        "target_port": flow.dport,
         "flow": f"{flow.src_ip}:{flow.sport} -> {flow.dst_ip}:{flow.dport}",
         "proto": {6: "TCP", 17: "UDP", 1: "ICMP"}.get(flow.proto, str(flow.proto)),
         "spkts": len(flow.src_packets),
@@ -83,6 +86,8 @@ def monitor_loop(stop_event: threading.Event | None = None):
         "confidence": 1.0,
         "timestamp": time.time(),
         "active_flows": 0,
+        "attacker_ip": None,
+        "target_port": None,
         "attack_flow": None,
     })
 
@@ -167,15 +172,18 @@ def monitor_loop(stop_event: threading.Event | None = None):
                     "confidence": round(max_conf, 4),
                     "timestamp": time.time(),
                     "active_flows": len(active_flows),
+                    "attacker_ip": attack_info["src"],
+                    "target_port": attack_info["dport"],
                     "attack_flow": attack_info,
                 })
                 logger.warning(
-                    "[%s] ATTACK conf=%0.0f%% flow=%s->%s:%s flows=%s time=%0.2fs",
+                    "[%s] ATTACK conf=%0.0f%% attacker_ip=%s target=%s:%s detector=%s flows=%s time=%0.2fs",
                     ts,
                     max_conf * 100,
                     attack_info["src"],
                     attack_info["dst"],
                     attack_info["dport"],
+                    attack_info["detector"],
                     len(active_flows),
                     proc_time,
                 )
@@ -186,6 +194,8 @@ def monitor_loop(stop_event: threading.Event | None = None):
                     "confidence": 1.0,
                     "timestamp": time.time(),
                     "active_flows": len(active_flows),
+                    "attacker_ip": None,
+                    "target_port": None,
                     "attack_flow": None,
                 })
                 logger.info("[%s] OK flows=%s time=%0.2fs", ts, len(active_flows), proc_time)

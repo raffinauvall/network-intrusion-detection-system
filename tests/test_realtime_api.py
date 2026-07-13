@@ -40,6 +40,8 @@ async def test_status(client):
     data = response.json()
     assert "status" in data
     assert "prediction" in data
+    assert "attacker_ip" in data
+    assert "target_port" in data
     assert "sniffer" in data
 
 
