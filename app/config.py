@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-APP_TITLE = "UNSW-NB15 IDS Model API"
-APP_DESCRIPTION = "FastAPI prototype for serving a Random Forest IDS pipeline."
+APP_TITLE = "UNSW-NB15 Realtime IDS API"
+APP_DESCRIPTION = "FastAPI prototype for realtime IDS sniffing."
 APP_VERSION = "3.0"
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -65,7 +65,6 @@ STALE_FLOW_TIMEOUT = _get_int_env("NIDS_STALE_FLOW_TIMEOUT", 30)
 PREDICTION_INTERVAL = _get_float_env("NIDS_PREDICTION_INTERVAL", 1.0)
 MIN_SRC_PACKETS = _get_int_env("NIDS_MIN_SRC_PACKETS", 1)
 LIVE_FLOW_ALERT_THRESHOLD = _get_int_env("NIDS_LIVE_FLOW_ALERT_THRESHOLD", 100)
-MAX_INSPECT_FEATURES = _get_int_env("NIDS_MAX_INSPECT_FEATURES", 250)
 CONFIDENCE_THRESHOLD = _get_float_env("NIDS_CONFIDENCE_THRESHOLD", 0.80)
 REQ_CONFIDENCE_THRESHOLD = _get_float_env("NIDS_REQ_CONFIDENCE_THRESHOLD", CONFIDENCE_THRESHOLD)
 MONITORING_MODE = os.environ.get("NIDS_MONITORING_MODE", "inbound").strip().lower()

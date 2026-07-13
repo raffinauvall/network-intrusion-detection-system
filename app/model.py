@@ -32,7 +32,6 @@ class ModelService:
         self.pipeline = None
         self.feature_columns: list[str] = []
         self.label_mapping: dict[int, str] = {}
-        self.metrics: dict = {}
 
     @property
     def model(self):
@@ -58,7 +57,6 @@ class ModelService:
             _class_key(key): str(value)
             for key, value in bundle["label_mapping"].items()
         }
-        self.metrics = dict(bundle.get("metrics") or {})
         logger.info("Loaded %s with %s features.", MODEL_NAME, len(self.feature_columns))
 
     def _validate_bundle(self, bundle) -> None:
@@ -73,9 +71,6 @@ class ModelService:
             raise ValueError("model bundle feature_columns must match the 42 raw UNSW-NB15 fields")
         if not isinstance(bundle["label_mapping"], dict):
             raise ValueError("model bundle label_mapping must be a dict")
-
-    def predict(self, record: dict) -> dict:
-        return self.predict_many([record])[0]
 
     def predict_many(self, records: list[dict]) -> list[dict]:
         if self.pipeline is None:
@@ -124,18 +119,6 @@ class ModelService:
             if hasattr(final_estimator, "classes_"):
                 return list(final_estimator.classes_)
         return []
-
-    def get_metadata(self):
-        return {
-            "model_name": MODEL_NAME,
-            "feature_count": len(self.feature_columns),
-            "feature_columns": self.feature_columns,
-            "label_mapping": {str(key): value for key, value in self.label_mapping.items()},
-            "metrics": {
-                key: float(self.metrics.get(key, 0.0))
-                for key in ("accuracy", "precision_attack", "recall_attack", "f1_score_attack")
-            },
-        }
 
 
 model_service = ModelService()
