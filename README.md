@@ -6,8 +6,7 @@ returns `Normal` or `Attack`.
 
 The primary supported flow is still JSON payload -> model pipeline -> response.
 Optional Scapy live sniffing can build prototype flow features, but it is not
-proof that UNSW-NB15 evaluation results transfer directly to live traffic. Auto
-blocking is disabled by default.
+proof that UNSW-NB15 evaluation results transfer directly to live traffic.
 
 ## Setup
 
@@ -74,7 +73,6 @@ app/
   config.py      # konfigurasi environment
   state.py       # state runtime untuk live sniffing
   network.py     # helper port, interface, jitter, loss
-  blocker.py     # blocking opsional, default nonaktif
   core/
     flow.py      # representasi flow
     features.py  # ekstraksi 42 fitur dari flow live
@@ -165,6 +163,18 @@ terminal kedua jalankan simulasi SYN flood lokal:
 sudo .venv/bin/python tests/scripts/dos_simulation.py 127.0.0.1
 ```
 
+Format lengkapnya:
+
+```bash
+sudo .venv/bin/python tests/scripts/dos_simulation.py <target_ip> <target_port> <jumlah_paket>
+```
+
+Contoh kalau mau menguji port SSH lokal/lab:
+
+```bash
+sudo .venv/bin/python tests/scripts/dos_simulation.py 127.0.0.1 22 5000
+```
+
 Setelah itu cek hasil deteksi:
 
 ```bash
@@ -205,7 +215,7 @@ official UNSW-NB15 test evaluation from the training notebook.
 
 - `/predict` uses request payloads.
 - Live sniffing is prototype feature extraction only.
-- No automatic firewall blocking or active mitigation by default.
+- No automatic firewall blocking or active mitigation.
 - Not validated as production real-time packet detection.
 - Model performance must be evaluated with the official UNSW-NB15 testing data,
   not from API smoke-test payloads.

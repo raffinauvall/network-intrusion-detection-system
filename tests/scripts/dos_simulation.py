@@ -32,8 +32,14 @@ def start_dos(target_ip, target_port=8000, count=1000):
 
 if __name__ == "__main__":
     TARGET = "127.0.0.1"
+    PORT = 8000
+    COUNT = 5000
     
     if len(sys.argv) > 1:
         TARGET = sys.argv[1]
-        
-    start_dos(TARGET, count=5000)
+    if len(sys.argv) > 2:
+        PORT = int(sys.argv[2])
+    if len(sys.argv) > 3:
+        COUNT = int(sys.argv[3])
+
+    start_dos(TARGET, target_port=PORT, count=COUNT)

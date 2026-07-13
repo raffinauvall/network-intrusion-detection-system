@@ -3,7 +3,6 @@ import time
 from app.state import flow_table, flow_lock, detection_history, latest_prediction
 from app.core.features import build_features_from_flow
 from app.model import model_service
-from app.blocker import block_ip
 from app.network import get_local_ips
 from app.config import (
     CONFIDENCE_THRESHOLD,
@@ -157,7 +156,6 @@ def monitor_loop(stop_event: threading.Event | None = None):
                         attack_info = _flow_info(flow, conf, "model")
 
                     detection_history.append(_history_event(flow, conf))
-                    block_ip(flow.src_ip, confidence=conf)
 
             ts = time.strftime("%H:%M:%S")
             proc_time = time.time() - start_proc

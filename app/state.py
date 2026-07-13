@@ -8,8 +8,6 @@ flow_lock = threading.Lock()
 detection_history = deque(maxlen=200)
 connection_log = deque(maxlen=500)  # For ct_* features
 connection_log_lock = threading.Lock()
-blocked_ips = {}
-blocked_ips_lock = threading.Lock()
 latest_prediction = {"status": "INITIALIZING", "prediction": 0, "timestamp": time.time()}
 sniffer_status = {
     "enabled": None,

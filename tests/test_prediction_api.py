@@ -103,4 +103,3 @@ async def test_prediction_api_does_not_import_legacy_packet_tools(client):
     assert response.status_code == 200
     assert "scapy" not in sys.modules
     assert "app.core.sniffer" not in sys.modules
-    assert "app.blocker" not in sys.modules

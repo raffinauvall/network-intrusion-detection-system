@@ -70,11 +70,7 @@ CONFIDENCE_THRESHOLD = _get_float_env("NIDS_CONFIDENCE_THRESHOLD", 0.80)
 REQ_CONFIDENCE_THRESHOLD = _get_float_env("NIDS_REQ_CONFIDENCE_THRESHOLD", CONFIDENCE_THRESHOLD)
 MONITORING_MODE = os.environ.get("NIDS_MONITORING_MODE", "inbound").strip().lower()
 ENABLE_SNIFFER = _get_bool_env("NIDS_ENABLE_SNIFFER", False)
-ENABLE_AUTO_BLOCK = _get_bool_env("NIDS_ENABLE_AUTO_BLOCK", False)
 MONITOR_LOOPBACK = _get_bool_env("NIDS_MONITOR_LOOPBACK", False)
-BLOCK_MODE = os.environ.get("NIDS_BLOCK_MODE", "internal").strip().lower()
-BLOCK_REASON = os.environ.get("NIDS_BLOCK_REASON", "attack_detected").strip() or "attack_detected"
-BLOCKLIST_PATH = Path(os.environ.get("NIDS_BLOCKLIST_PATH", str(BASE_DIR / "blocked_ips.json")))
 
 # Network interface configuration. Set via environment variable for deployment.
 # Examples:
